@@ -2,79 +2,65 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/MieAyammmm/recipe/backend/controllers"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	// 1. Load .env
 	if err := godotenv.Load(); err != nil {
-		log.Println("Warning: .env file not found (using default settings)")
+		log.Println("⚠️ .env file not found (using default settings)")
 	}
 
-	// 2. Setup HTTP Routes
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "Server is running! 🚀")
-	})
+	// 2. Setup Gin
+	router := gin.Default()
 
-	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "pong")
-	})
+	// 3. Connect to MongoDB
+	client, err := mongo.Connect(
+		context.Background(),
+		options.Client().ApplyURI(os.Getenv("MONGODB_URI")),
+	)
+	if err != nil {
+		log.Fatal("❌ MongoDB connection failed:", err)
+	}
+	defer client.Disconnect(context.Background())
 
-	// 3. Start HTTP Server (di goroutine terpisah)
+	// 4. Check MongoDB connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx, nil); err != nil {
+		log.Fatal("❌ MongoDB ping failed:", err)
+	}
+	log.Println("✅ Connected to MongoDB!")
+
+	// 5. Initialize Controller
+	db := client.Database(os.Getenv("DB_NAME"))
+	recipeController := controllers.NewRecipeController(db)
+
+	// 6. Register Routes
+	router.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "Server is running! 🚀")
+	})
+	router.POST("/recipes", recipeController.CreateRecipe)
+	router.GET("/recipes", recipeController.GetRecipes)
+	router.GET("/recipes/:id", recipeController.GetRecipeByID)
+	router.PUT("/recipes/:id", recipeController.UpdateRecipe)
+	router.DELETE("/recipes/:id", recipeController.DeleteRecipe)
+
+	// 7. Start Server
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8000" // Default port
+		port = "8000"
 	}
-
-	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: nil, // Gunakan http.DefaultServeMux
-	}
-
-	go func() {
-		log.Printf("Server running on http://localhost:%s", port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
-		}
-	}()
-
-	// 4. Connect to MongoDB (opsional, tidak menghentikan server jika gagal)
-	connectToMongoDB()
-
-	// Block main thread
-	select {}
-}
-
-func connectToMongoDB() {
-	uri := os.Getenv("MONGODB_URI")
-	if uri == "" {
-		log.Println("MONGODB_URI not set, skipping database connection")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
-	if err != nil {
-		log.Printf("⚠️ MongoDB connection failed: %v", err)
-		return
-	}
-	defer client.Disconnect(ctx)
-
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		log.Printf("⚠️ MongoDB ping failed: %v", err)
-		return
-	}
-
-	log.Println("✅ Connected to MongoDB!")
+	log.Printf("🌐 Server running on http://localhost:%s", port)
+	router.Run(":" + port)
 }
