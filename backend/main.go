@@ -8,12 +8,27 @@ import (
 	"time"
 
 	"github.com/MieAyammmm/recipe/backend/controllers"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/gin-gonic/gin"
 )
+
+// CORS Middleware
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
 
 func main() {
 	// 1. Load .env
@@ -21,8 +36,9 @@ func main() {
 		log.Println("⚠️ .env file not found (using default settings)")
 	}
 
-	// 2. Setup Gin
+	// 2. Setup Gin with CORS
 	router := gin.Default()
+	router.Use(CORSMiddleware()) 
 
 	// 3. Connect to MongoDB
 	client, err := mongo.Connect(
@@ -62,5 +78,7 @@ func main() {
 		port = "8000"
 	}
 	log.Printf("🌐 Server running on http://localhost:%s", port)
-	router.Run(":" + port)
+	if err := router.Run(":" + port); err != nil {
+		log.Fatal("❌ Failed to start server:", err)
+	}
 }
