@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -72,6 +73,7 @@ func (rc *RecipeController) GetRecipes(c *gin.Context) {
 // GetRecipeByID - GET /recipes/:id
 func (rc *RecipeController) GetRecipeByID(c *gin.Context) {
     id := c.Param("id")
+    fmt.Println("Received ID:", id)
     objectID, err := primitive.ObjectIDFromHex(id)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid recipe ID"})
