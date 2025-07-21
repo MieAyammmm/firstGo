@@ -1,21 +1,40 @@
+// src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import LandingPage from '@/views/LandingPage.vue'
+import HomePage from '@/views/HomePage.vue'
+import AddRecipePage from '@/views/AddRecipePage.vue'
+import RecipeDetailPage from '@/views/RecipeDetailPage.vue'
+import EditRecipePage from '@/views/EditRecipePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/home',
-      name: 'home',
-      component: HomeView,
+      path: '/',
+      name: 'landing',
+      component: LandingPage,
     },
     {
-      path: '/about',
-      name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      component: () => import('../views/AboutView.vue'),
+      path: '/home',
+      name: 'home',
+      component: HomePage,
+    },
+    {
+      path: '/add-recipe',
+      name: 'add-recipe',
+      component: AddRecipePage,
+    },
+    {
+      path: '/recipe/:id',
+      name: 'recipe-detail',
+      component: RecipeDetailPage,
+      props: true,
+    },
+    {
+      path: '/edit-recipe/:id',
+      name: 'edit-recipe',
+      component: EditRecipePage,
+      props: true,
     },
   ],
 })
