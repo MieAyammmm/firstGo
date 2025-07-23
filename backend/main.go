@@ -20,7 +20,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
@@ -31,38 +31,58 @@ func CORSMiddleware() gin.HandlerFunc {
 }
 
 func main() {
-	// 1. Load .env
+	// 1. Load .env file (for local dev)
 	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️ .env file not found (using default settings)")
+		log.Println("⚠️ .env file not found (using Railway env vars)")
 	}
 
-	// 2. Setup Gin with CORS
-	router := gin.Default()
-	router.Use(CORSMiddleware()) 
+	// 2. Get environment variables
+	mongoURI := os.Getenv("MONGODB_URI")
+	dbName := os.Getenv("DB_NAME")
+	port := os.Getenv("PORT")
 
-	// 3. Connect to MongoDB
-	client, err := mongo.Connect(
-		context.Background(),
-		options.Client().ApplyURI(os.Getenv("MONGODB_URI")),
-	)
+	if mongoURI == "" {
+		log.Fatal("❌ MONGODB_URI not set in environment variables")
+	}
+	if dbName == "" {
+		log.Fatal("❌ DB_NAME not set in environment variables")
+	}
+	if port == "" {
+		port = "8000" // fallback if PORT not set
+	}
+
+	log.Println("🔧 Environment variables loaded")
+
+	// 3. Setup Gin
+	router := gin.Default()
+	router.Use(CORSMiddleware())
+
+	// 4. Connect to MongoDB
+	ctx := context.Background()
+	log.Println("🔌 Connecting to MongoDB...")
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatal("❌ MongoDB connection failed:", err)
 	}
-	defer client.Disconnect(context.Background())
+	defer func() {
+		if err := client.Disconnect(ctx); err != nil {
+			log.Println("⚠️ Error disconnecting MongoDB:", err)
+		}
+	}()
 
-	// 4. Check MongoDB connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// 5. Ping MongoDB
+	ctxPing, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if err := client.Ping(ctx, nil); err != nil {
+	if err := client.Ping(ctxPing, nil); err != nil {
 		log.Fatal("❌ MongoDB ping failed:", err)
 	}
 	log.Println("✅ Connected to MongoDB!")
 
-	// 5. Initialize Controller
-	db := client.Database(os.Getenv("DB_NAME"))
+	// 6. Init controller
+	db := client.Database(dbName)
 	recipeController := controllers.NewRecipeController(db)
 
-	// 6. Register Routes
+	// 7. Register routes
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Server is running! 🚀")
 	})
@@ -72,12 +92,8 @@ func main() {
 	router.PUT("/recipes/:id", recipeController.UpdateRecipe)
 	router.DELETE("/recipes/:id", recipeController.DeleteRecipe)
 
-	// 7. Start Server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8000"
-	}
-	log.Printf("🌐 Server running on http://localhost:%s", port)
+	// 8. Start server
+	log.Printf("🌐 Server running on http://0.0.0.0:%s", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatal("❌ Failed to start server:", err)
 	}
