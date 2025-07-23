@@ -12,7 +12,7 @@ WORKDIR /app/recipe/backend
 RUN go mod download
 
 
-RUN go build -o main .
+RUN go build -o out .
 
 
-CMD ["./main"]
+CMD ["./out"]
