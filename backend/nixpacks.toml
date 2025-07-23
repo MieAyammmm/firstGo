@@ -1,5 +1,8 @@
 [phases.setup]
 nixPkgs = ["go"]
 
+[phases.build]
+cmds = ["go mod tidy"]
+
 [start]
 cmd = "go run main.go"
